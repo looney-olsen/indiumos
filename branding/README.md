@@ -1,9 +1,9 @@
 # Branding
 
-Drop your own assets here, then copy them into the image tree:
+- `source/` original logo files (`logo.png` has a transparent background).
+- App icon: `config/includes.chroot/usr/share/icons/hicolor/*/apps/indium-os.png` (made from `source/logo.png`).
+- Menu bar glyph: `.../hicolor/scalable/apps/indium-os-symbolic.svg` (a simple mark; the full logo is too detailed at 16 px).
+- Wallpapers: `config/includes.chroot/usr/share/backgrounds/indium/` (`default.jpg` is used at login).
 
-- Logo: replace `config/includes.chroot/usr/share/icons/indium-os.svg` and `indium-os-symbolic.svg`
-- Wallpapers: put them in `config/includes.chroot/usr/share/backgrounds/indium/`
-  (the default is `default.png`, a plain placeholder)
-
-Only use artwork and fonts you own or that are freely licensed. No Apple assets.
+The wallpapers are 1672x941. On larger screens they are scaled up, so higher-resolution versions would look sharper.
+Do not add artwork containing other companies' logos or trademarks.

@@ -6,3 +6,4 @@ ID=indium
 ID_LIKE=debian
 HOME_URL="https://github.com/looney-olsen/indiumos"
 BUG_REPORT_URL="https://github.com/looney-olsen/indiumos/issues"
+LOGO=indium-os

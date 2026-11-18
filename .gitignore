@@ -12,3 +12,5 @@ build.log
 /config/source
 /config/includes.chroot/usr/bin/indium-shell
 /config/includes.chroot/usr/bin/indium-settings
+__pycache__/
+*.pyc
