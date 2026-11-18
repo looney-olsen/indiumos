@@ -1,0 +1,61 @@
+#!/bin/sh
+# indium-session: start an Indium OS Wayland session.
+#
+# Run by greetd after login (or by hand from a text console). It starts the
+# compositor that indium-hwprofile chose for this machine:
+#
+#   labwc    Lite profile, or no hardware graphics acceleration
+#   wayfire  Standard/Pro profile with a working GPU (blur and animations)
+#
+# If Wayfire fails to start (a driver problem, say) it falls back to labwc with
+# software rendering, so a bad GPU never leaves you without a desktop.
+
+PROFILE_FILE=/etc/indium/profile
+if [ -r "$PROFILE_FILE" ]; then
+    set -a
+    # shellcheck disable=SC1090
+    . "$PROFILE_FILE"
+    set +a
+fi
+: "${INDIUM_COMPOSITOR:=labwc}"
+: "${INDIUM_PROFILE:=standard}"
+
+# Desktop apps need a session bus. systemd-logind normally provides one;
+# otherwise start a private one around this same script.
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && command -v dbus-run-session >/dev/null 2>&1; then
+    exec dbus-run-session -- "$0" "$@"
+fi
+
+export XDG_SESSION_TYPE=wayland
+export XDG_CURRENT_DESKTOP=Indium
+export XDG_SESSION_DESKTOP=indium
+export MOZ_ENABLE_WAYLAND=1
+export QT_QPA_PLATFORM="wayland;xcb"
+export QT_WAYLAND_DISABLE_WINDOWDECORATION=1
+export _JAVA_AWT_WM_NONREPARENTING=1
+
+log() {
+    logger -t indium-session "$*" 2>/dev/null || true
+}
+
+log "starting: profile=$INDIUM_PROFILE compositor=$INDIUM_COMPOSITOR renderer=${WLR_RENDERER:-default}"
+
+if [ "$INDIUM_COMPOSITOR" = "wayfire" ] && command -v wayfire >/dev/null 2>&1; then
+    config="/etc/indium/wayfire/${INDIUM_PROFILE}.ini"
+    [ -r "$config" ] || config=/etc/indium/wayfire/standard.ini
+
+    started=$(date +%s)
+    wayfire -c "$config"
+    status=$?
+
+    # Quitting normally (log out) or after a long session is fine. A failure in
+    # the first seconds means Wayfire could not start.
+    if [ "$status" -ne 0 ] && [ $(($(date +%s) - started)) -lt 10 ]; then
+        log "wayfire failed with status $status; falling back to labwc with software rendering"
+        export WLR_RENDERER=pixman
+        exec labwc
+    fi
+    exit "$status"
+fi
+
+exec labwc

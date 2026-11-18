@@ -1,0 +1,20 @@
+#!/bin/sh
+# live-build configuration for Indium OS. Run `lb config` (this script) then `lb build`.
+set -e
+
+lb config noauto \
+    --distribution trixie \
+    --architectures amd64 \
+    --archive-areas "main contrib non-free-firmware" \
+    --parent-archive-areas "main contrib non-free-firmware" \
+    --debian-installer none \
+    --apt-recommends false \
+    --memtest none \
+    --firmware-chroot true \
+    --binary-images iso-hybrid \
+    --bootloaders "grub-efi,syslinux" \
+    --iso-application "Indium OS" \
+    --iso-publisher "Gangster Prince Productions" \
+    --iso-volume "INDIUM_OS" \
+    --bootappend-live "boot=live components quiet username=indium hostname=indium locales=en_US.UTF-8 timezone=Africa/Windhoek keyboard-layouts=us" \
+    "${@}"

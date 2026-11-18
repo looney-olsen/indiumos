@@ -1,0 +1,12 @@
+[Unit]
+Description=Indium OS live session automatic login
+ConditionKernelCommandLine=boot=live
+After=live-config.service
+Before=greetd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/indium/live-autologin
+
+[Install]
+WantedBy=graphical.target

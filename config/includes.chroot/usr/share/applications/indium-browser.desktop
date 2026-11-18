@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Web Browser
+Comment=Browse the web (Epiphany on Lite, Firefox on Standard and Pro)
+Exec=indium-browser %U
+Icon=web-browser
+Terminal=false
+Categories=Network;WebBrowser;
+MimeType=text/html;x-scheme-handler/http;x-scheme-handler/https;
+X-Indium-AppIds=org.gnome.Epiphany;firefox-esr;firefox;

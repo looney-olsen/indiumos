@@ -1,0 +1,8 @@
+PRETTY_NAME="Indium OS 0.1"
+NAME="Indium OS"
+VERSION_ID="0.1"
+VERSION="0.1 (Alpha)"
+ID=indium
+ID_LIKE=debian
+HOME_URL="https://github.com/Gangster-Prince-Productions/indium-os"
+BUG_REPORT_URL="https://github.com/Gangster-Prince-Productions/indium-os/issues"

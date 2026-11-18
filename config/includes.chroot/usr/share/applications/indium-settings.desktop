@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Settings
+Comment=Appearance, performance, display, network and sound
+Exec=indium-settings %U
+Icon=preferences-system
+Terminal=false
+Categories=Settings;
+StartupWMClass=org.indium.Settings

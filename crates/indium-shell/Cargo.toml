@@ -1,0 +1,32 @@
+[package]
+name = "indium-shell"
+description = "The Indium OS desktop shell: menu bar, dock, launcher, notifications, control center and settings"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "indium-shell"
+path = "src/main.rs"
+
+[[bin]]
+name = "indium-settings"
+path = "src/bin/settings.rs"
+
+[dependencies]
+indium-core = { path = "../indium-core" }
+gtk = { package = "gtk4", version = "0.11", features = ["v4_12"] }
+gtk4-layer-shell = { version = "0.8", optional = true }
+wayland-client = "0.31"
+wayland-protocols-wlr = { version = "0.3", features = ["client"] }
+gio-unix = "0.22.11"
+glib-unix = "0.22.8"
+
+[features]
+# Real Wayland layer-shell surfaces (menu bar, dock, popups). Always on in the ISO.
+# Turn off (--no-default-features) to run the windows as ordinary toplevels for
+# development on a system without libgtk4-layer-shell.
+default = ["layer-shell"]
+layer-shell = ["dep:gtk4-layer-shell"]

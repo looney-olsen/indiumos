@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Indium
+Comment=Indium OS desktop
+Exec=/usr/bin/indium-session
+Type=Application
+DesktopNames=Indium

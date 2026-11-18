@@ -1,0 +1,3 @@
+swaybg -c e8eef5 -i /usr/share/backgrounds/indium/default.png -m fill >/dev/null 2>&1 &
+lxpolkit >/dev/null 2>&1 &
+indium-shell >/dev/null 2>&1 &

@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<labwc_config>
+  <theme>
+    <name>Indium</name>
+    <cornerRadius>10</cornerRadius>
+    <font place="" name="Inter" size="10"/>
+  </theme>
+  <titlebar>
+    <layout>close,iconify,max:</layout>
+  </titlebar>
+  <focus>
+    <followMouse>no</followMouse>
+    <raiseOnFocus>yes</raiseOnFocus>
+  </focus>
+  <keyboard>
+    <default />
+    <keybind key="W-space"><action name="Execute" command="indium-shell --toggle-launcher"/></keybind>
+    <keybind key="W-q"><action name="Close"/></keybind>
+    <keybind key="W-w"><action name="Close"/></keybind>
+    <keybind key="W-m"><action name="Iconify"/></keybind>
+    <keybind key="W-Tab"><action name="NextWindow"/></keybind>
+    <keybind key="W-l"><action name="Execute" command="swaylock -f -c 1d1d1f"/></keybind>
+    <keybind key="W-Return"><action name="Execute" command="foot"/></keybind>
+    <keybind key="Print"><action name="Execute" command="sh -c 'grim ~/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png'"/></keybind>
+    <keybind key="S-Print"><action name="Execute" command="sh -c 'grim -g &quot;$(slurp)&quot; ~/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png'"/></keybind>
+    <keybind key="XF86AudioRaiseVolume"><action name="Execute" command="wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+"/></keybind>
+    <keybind key="XF86AudioLowerVolume"><action name="Execute" command="wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"/></keybind>
+    <keybind key="XF86AudioMute"><action name="Execute" command="wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"/></keybind>
+    <keybind key="XF86MonBrightnessUp"><action name="Execute" command="brightnessctl -n1 set 5%+"/></keybind>
+    <keybind key="XF86MonBrightnessDown"><action name="Execute" command="brightnessctl -n1 set 5%-"/></keybind>
+  </keyboard>
+</labwc_config>

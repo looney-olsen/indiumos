@@ -1,0 +1,40 @@
+name: CI
+on:
+  push:
+  pull_request:
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    container: debian:trixie
+    steps:
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl git build-essential pkg-config \
+            libgtk-4-dev libgtk4-layer-shell-dev libglib2.0-dev
+          curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal -c rustfmt,clippy
+      - uses: actions/checkout@v4
+      - name: Format, lint, test
+        run: |
+          . "$HOME/.cargo/env"
+          cargo fmt --all -- --check
+          cargo clippy --all-targets -- -D warnings
+          cargo test
+      - name: Release build
+        run: |
+          . "$HOME/.cargo/env"
+          cargo build --release
+
+  scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y shellcheck libxml2-utils
+      - name: Python tests
+        run: cd tests && python3 -m unittest discover -v
+      - name: Shellcheck
+        run: shellcheck auto/* config/hooks/live/* config/includes.chroot/usr/bin/* config/includes.chroot/usr/lib/indium/live-autologin
+      - name: XML
+        run: xmllint --noout config/includes.chroot/etc/xdg/labwc/*.xml config/includes.chroot/usr/share/polkit-1/actions/*.policy

@@ -1,0 +1,14 @@
+target/
+*.iso
+build.log
+/chroot/
+/binary/
+/cache/
+/.build/
+/config/binary
+/config/bootstrap
+/config/chroot
+/config/common
+/config/source
+/config/includes.chroot/usr/bin/indium-shell
+/config/includes.chroot/usr/bin/indium-settings

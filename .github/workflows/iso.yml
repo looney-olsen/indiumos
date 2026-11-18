@@ -1,0 +1,34 @@
+name: Build ISO
+on:
+  workflow_dispatch:
+
+jobs:
+  iso:
+    runs-on: ubuntu-latest
+    container:
+      image: debian:trixie
+      options: --privileged
+    steps:
+      - name: Install tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl git build-essential pkg-config \
+            libgtk-4-dev libgtk4-layer-shell-dev libglib2.0-dev live-build debootstrap squashfs-tools \
+            xorriso grub-pc-bin grub-efi-amd64-bin mtools dosfstools
+          curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+      - uses: actions/checkout@v4
+      - name: Build shell
+        run: |
+          . "$HOME/.cargo/env"
+          cargo build --release
+          install -Dm755 target/release/indium-shell config/includes.chroot/usr/bin/indium-shell
+          install -Dm755 target/release/indium-settings config/includes.chroot/usr/bin/indium-settings
+      - name: Build ISO
+        run: |
+          chmod +x auto/*
+          ./auto/config
+          ./auto/build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: indium-os-iso
+          path: "*.iso"

@@ -1,0 +1,5 @@
+[Default Applications]
+text/html=indium-browser.desktop
+x-scheme-handler/http=indium-browser.desktop
+x-scheme-handler/https=indium-browser.desktop
+inode/directory=thunar.desktop

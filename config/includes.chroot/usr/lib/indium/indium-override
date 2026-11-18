@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+"""indium-override: validate and save the hardware overrides (privileged helper).
+
+Run through pkexec by Settings > Performance, or by hand:
+
+    sudo /usr/lib/indium/indium-override profile=lite gpu=force storage=ssd
+
+Accepted keys and values (anything else is rejected, nothing is written):
+
+    profile   auto | lite | standard | pro
+    gpu       auto | force | off
+    storage   auto | ssd | hdd
+
+Keys that are left out are reset to "auto". The result is written to
+/etc/indium/override.conf and `indium-hwprofile --apply` is run so storage and
+memory tuning take effect now; the compositor choice applies at next login.
+
+This program runs as root on behalf of an ordinary user, so it reads nothing
+from the environment and accepts nothing but the three keys above.
+"""
+
+import os
+import subprocess
+import sys
+
+OVERRIDE_FILE = "/etc/indium/override.conf"
+HWPROFILE = "/usr/lib/indium/indium-hwprofile"
+
+ALLOWED = {
+    "profile": ("auto", "lite", "standard", "pro"),
+    "gpu": ("auto", "force", "off"),
+    "storage": ("auto", "ssd", "hdd"),
+}
+
+
+class UsageError(Exception):
+    pass
+
+
+def parse_args(args):
+    """Turn ["profile=lite", ...] into a validated dict. Raises UsageError."""
+    values = {key: "auto" for key in ALLOWED}
+    seen = set()
+    for arg in args:
+        key, sep, value = arg.partition("=")
+        if not sep:
+            raise UsageError(f"expected key=value, got {arg!r}")
+        if key not in ALLOWED:
+            raise UsageError(f"unknown setting {key!r}")
+        if key in seen:
+            raise UsageError(f"{key} given twice")
+        if value not in ALLOWED[key]:
+            raise UsageError(
+                f"{key} must be one of {', '.join(ALLOWED[key])} (got {value!r})"
+            )
+        seen.add(key)
+        values[key] = value
+    return values
+
+
+def render(values):
+    lines = [
+        "# Written by Indium Settings (Performance). Applies at next login.",
+        "# Keys: profile=auto|lite|standard|pro  gpu=auto|force|off  storage=auto|ssd|hdd",
+    ]
+    lines += [f"{key}={values[key]}" for key in ALLOWED]
+    return "\n".join(lines) + "\n"
+
+
+def write_atomically(path, text):
+    directory = os.path.dirname(path)
+    os.makedirs(directory, exist_ok=True)
+    temp = os.path.join(directory, ".override.conf.tmp")
+    # O_EXCL + O_NOFOLLOW: never follow a planted symlink while running as root.
+    try:
+        os.unlink(temp)
+    except FileNotFoundError:
+        pass
+    fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
+    with os.fdopen(fd, "w") as handle:
+        handle.write(text)
+    os.replace(temp, path)
+
+
+def main(argv):
+    try:
+        values = parse_args(argv)
+    except UsageError as err:
+        print(f"indium-override: {err}", file=sys.stderr)
+        return 2
+    if os.geteuid() != 0:
+        print("indium-override: must run as root (use pkexec)", file=sys.stderr)
+        return 1
+    write_atomically(OVERRIDE_FILE, render(values))
+    if os.path.exists(HWPROFILE):
+        subprocess.run([HWPROFILE, "--apply"], check=False, stdout=subprocess.DEVNULL)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

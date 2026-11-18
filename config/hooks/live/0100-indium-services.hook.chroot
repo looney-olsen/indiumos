@@ -1,0 +1,13 @@
+#!/bin/sh
+set -e
+systemctl enable indium-hwprofile.service || true
+systemctl enable greetd.service || true
+systemctl enable indium-live-autologin.service || true
+systemctl enable NetworkManager.service || true
+systemctl set-default graphical.target || true
+gtk-update-icon-cache -f /usr/share/icons/Papirus 2>/dev/null || true
+chmod +x /usr/bin/indium-session /usr/bin/indium-browser /usr/lib/indium/* 2>/dev/null || true
+# Calamares: rename the Debian branding if present (best effort).
+for f in /etc/calamares/branding/*/branding.desc; do
+    if [ -f "$f" ]; then sed -i "s/Debian GNU\/Linux/Indium OS/g" "$f"; fi
+done

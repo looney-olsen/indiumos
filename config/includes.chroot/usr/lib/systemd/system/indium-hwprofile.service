@@ -1,0 +1,14 @@
+[Unit]
+Description=Indium OS hardware profile detection
+Documentation=https://github.com/Gangster-Prince-Productions/indium-os
+DefaultDependencies=no
+After=local-fs.target systemd-udev-trigger.service
+Before=display-manager.service sysinit.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/indium/indium-hwprofile --apply
+
+[Install]
+WantedBy=sysinit.target

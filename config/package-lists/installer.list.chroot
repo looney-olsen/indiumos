@@ -1,0 +1,7 @@
+calamares
+calamares-settings-debian
+grub-efi-amd64
+grub-pc-bin
+efibootmgr
+shim-signed
+os-prober

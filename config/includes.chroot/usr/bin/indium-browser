@@ -1,0 +1,33 @@
+#!/bin/sh
+# indium-browser: open the default web browser for this machine's hardware profile.
+#
+# Lite machines get Epiphany (small and light on memory); Standard and Pro get
+# Firefox. If the preferred one is missing, the next available browser is used.
+
+if [ -r /etc/indium/profile ]; then
+    # shellcheck disable=SC1091
+    . /etc/indium/profile
+fi
+
+pick() {
+    for candidate in "$@"; do
+        if command -v "$candidate" >/dev/null 2>&1; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+if [ "${INDIUM_PROFILE:-standard}" = "lite" ]; then
+    browser=$(pick epiphany firefox-esr chromium)
+else
+    browser=$(pick firefox-esr epiphany chromium)
+fi
+
+if [ -z "$browser" ]; then
+    echo "indium-browser: no web browser is installed" >&2
+    exit 1
+fi
+
+exec "$browser" "$@"

@@ -1,0 +1,326 @@
+#!/usr/bin/env python3
+"""indium-hwprofile: detect hardware and select an Indium OS profile.
+
+Usage:
+  indium-hwprofile             show detection result and planned changes (dry run)
+  indium-hwprofile --apply     write config and apply tuning (root, runs at boot)
+  indium-hwprofile --json      machine-readable result for the Settings app
+  indium-hwprofile --set k=v   override a setting for this run (repeatable)
+
+Overrides, highest priority first:
+  1. --set key=value
+  2. kernel command line:  indium.profile=lite|standard|pro
+                           indium.gpu=auto|force|off
+                           indium.storage=auto|ssd|hdd
+  3. /etc/indium/override.conf  (same keys, one key=value per line)
+  4. automatic detection
+
+indium.gpu=force  skips detection and assumes hardware rendering works.
+indium.gpu=off    forces software rendering (safe mode for broken drivers).
+"""
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+
+SYSROOT = os.environ.get("INDIUM_SYSROOT", "/")
+
+# MemTotal is lower than installed RAM (firmware and the iGPU reserve memory),
+# so thresholds sit between the real-world readings of each RAM size.
+LITE_MAX_MB = 4608    # 2 GB and 4 GB machines, up to roughly 5 GB
+PRO_MIN_MB = 6500     # 8 GB machines and up
+LOWMEM_MAX_MB = 2600  # 2 GB machines
+
+GPU_VENDORS = {"0x1002": "amd", "0x8086": "intel", "0x10de": "nvidia"}
+HW_DRIVERS = {"amdgpu", "radeon", "i915", "xe", "nouveau", "nvidia",
+              "panfrost", "msm", "v3d", "vc4"}
+
+PROFILES = {
+    "lite": {
+        "effects": "none", "animations": "off", "blur": "off",
+        "zram_fraction": 0.5, "swappiness": 150, "vfs_cache_pressure": 50,
+    },
+    "standard": {
+        "effects": "light", "animations": "short", "blur": "off",
+        "zram_fraction": 0.5, "swappiness": 100, "vfs_cache_pressure": 75,
+    },
+    "pro": {
+        "effects": "full", "animations": "full", "blur": "on",
+        "zram_fraction": 0.25, "swappiness": 60, "vfs_cache_pressure": 100,
+    },
+}
+
+SCHEDULER = {"nvme": "none", "ssd": "mq-deadline", "hdd": "bfq"}
+SKIP_DISKS = re.compile(r"^(loop|ram|zram|sr|fd|dm-|md|nbd)")
+
+
+# ---------------------------------------------------------------- helpers
+
+def host(path):
+    return os.path.join(SYSROOT, path.lstrip("/"))
+
+
+def read(path, default=""):
+    try:
+        with open(host(path)) as f:
+            return f.read().strip()
+    except OSError:
+        return default
+
+
+def listdir(path):
+    try:
+        return sorted(os.listdir(host(path)))
+    except OSError:
+        return []
+
+
+# -------------------------------------------------------------- detection
+
+def detect_ram_mb():
+    for line in read("/proc/meminfo").splitlines():
+        if line.startswith("MemTotal:"):
+            return int(line.split()[1]) // 1024
+    return 0
+
+
+def detect_cpus():
+    count = sum(1 for l in read("/proc/cpuinfo").splitlines()
+                if l.startswith("processor"))
+    return count or os.cpu_count() or 1
+
+
+def detect_gpu():
+    has_render_node = any(n.startswith("renderD") for n in listdir("/dev/dri"))
+    found = []
+    for name in listdir("/sys/class/drm"):
+        if not re.fullmatch(r"card\d+", name):
+            continue
+        try:
+            driver = os.path.basename(
+                os.readlink(host(f"/sys/class/drm/{name}/device/driver")))
+        except OSError:
+            driver = ""
+        vendor = GPU_VENDORS.get(
+            read(f"/sys/class/drm/{name}/device/vendor"), "unknown")
+        found.append({
+            "card": name,
+            "driver": driver,
+            "vendor": vendor,
+            "accelerated": driver in HW_DRIVERS and has_render_node,
+        })
+    if not found:
+        return {"card": "", "driver": "", "vendor": "none", "accelerated": False}
+    found.sort(key=lambda g: g["accelerated"], reverse=True)
+    return found[0]
+
+
+def detect_disks():
+    disks = []
+    for name in listdir("/sys/block"):
+        if SKIP_DISKS.match(name):
+            continue
+        rotational = read(f"/sys/block/{name}/queue/rotational")
+        if name.startswith("nvme"):
+            kind = "nvme"
+        elif rotational == "1":
+            kind = "hdd"
+        elif rotational == "0":
+            kind = "ssd"
+        else:
+            kind = "unknown"
+        disks.append({
+            "name": name,
+            "kind": kind,
+            "removable": read(f"/sys/block/{name}/removable") == "1",
+            "schedulers": read(f"/sys/block/{name}/queue/scheduler"),
+        })
+    return disks
+
+
+def storage_class(disks):
+    internal = [d for d in disks if not d["removable"]] or disks
+    for kind in ("nvme", "ssd", "hdd"):
+        if any(d["kind"] == kind for d in internal):
+            return kind
+    return "unknown"
+
+
+def parse_overrides(cli_sets):
+    opts = {}
+    for line in read("/etc/indium/override.conf").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, value = line.split("=", 1)
+            opts[key.strip()] = value.strip()
+    for token in read("/proc/cmdline").split():
+        if token.startswith("indium.") and "=" in token:
+            key, value = token[len("indium."):].split("=", 1)
+            opts[key] = value
+    for item in cli_sets:
+        if "=" in item:
+            key, value = item.split("=", 1)
+            opts[key.strip()] = value.strip()
+    return opts
+
+
+# --------------------------------------------------------------- decision
+
+def decide(opts):
+    ram = detect_ram_mb()
+    cpus = detect_cpus()
+    gpu = detect_gpu()
+    disks = detect_disks()
+
+    gpu_mode = opts.get("gpu", "auto")
+    if gpu_mode == "force":
+        gpu["accelerated"] = True
+    elif gpu_mode == "off":
+        gpu["accelerated"] = False
+
+    forced_storage = opts.get("storage", "auto")
+    if forced_storage in ("ssd", "hdd"):
+        for d in disks:
+            if not d["removable"]:
+                d["kind"] = forced_storage
+    storage = storage_class(disks)
+
+    wanted = opts.get("profile", "auto")
+    if wanted in PROFILES:
+        profile = wanted
+    elif ram < LITE_MAX_MB:
+        profile = "lite"
+    elif ram >= PRO_MIN_MB and gpu["accelerated"] and cpus >= 4:
+        profile = "pro"
+    else:
+        profile = "standard"
+
+    lowmem = ram < LOWMEM_MAX_MB
+    cfg = dict(PROFILES[profile])
+    if lowmem:
+        cfg.update(zram_fraction=1.0, swappiness=180)
+
+    use_wayfire = profile in ("standard", "pro") and gpu["accelerated"]
+    result = {
+        "profile": profile,
+        "lowmem": lowmem,
+        "ram_mb": ram,
+        "cpus": cpus,
+        "gpu": gpu,
+        "storage": storage,
+        "disks": disks,
+        "compositor": "wayfire" if use_wayfire else "labwc",
+        "renderer": "gles2" if gpu["accelerated"] else "pixman",
+    }
+    result.update(cfg)
+    return result
+
+
+# ------------------------------------------------------------------- plan
+
+def env_file(r):
+    lines = [
+        f"INDIUM_PROFILE={r['profile']}",
+        f"INDIUM_LOWMEM={int(r['lowmem'])}",
+        f"INDIUM_RAM_MB={r['ram_mb']}",
+        f"INDIUM_CPUS={r['cpus']}",
+        f"INDIUM_GPU_VENDOR={r['gpu']['vendor']}",
+        f"INDIUM_GPU_DRIVER={r['gpu']['driver'] or 'none'}",
+        f"INDIUM_GPU_ACCEL={int(r['gpu']['accelerated'])}",
+        f"INDIUM_STORAGE={r['storage']}",
+        f"INDIUM_COMPOSITOR={r['compositor']}",
+        f"INDIUM_EFFECTS={r['effects']}",
+        f"INDIUM_ANIMATIONS={r['animations']}",
+        f"INDIUM_BLUR={r['blur']}",
+        f"WLR_RENDERER={r['renderer']}",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def build_plan(r):
+    steps = [
+        ("write", "/etc/indium/profile", env_file(r)),
+        ("write", "/etc/sysctl.d/90-indium.conf",
+         f"vm.swappiness = {r['swappiness']}\n"
+         f"vm.vfs_cache_pressure = {r['vfs_cache_pressure']}\n"
+         "vm.page-cluster = 0\n"),
+        ("write", "/etc/systemd/zram-generator.conf",
+         "[zram0]\n"
+         f"zram-size = min(ram * {r['zram_fraction']}, 4096)\n"
+         "compression-algorithm = zstd\n"),
+    ]
+    for d in r["disks"]:
+        if d["removable"]:
+            continue
+        want = SCHEDULER.get(d["kind"])
+        available = re.findall(r"[\w-]+", d["schedulers"])
+        if want and want in available:
+            steps.append(("write", f"/sys/block/{d['name']}/queue/scheduler", want))
+    steps.append(("run", ["sysctl", "-p", "/etc/sysctl.d/90-indium.conf"], ""))
+    steps.append(("run", ["systemctl", "daemon-reload"], ""))
+    steps.append(("run", ["systemctl", "--no-block", "restart", "systemd-zram-setup@zram0.service"], ""))
+    if r["storage"] in ("nvme", "ssd"):
+        steps.append(("run", ["systemctl", "--no-block", "enable", "--now", "fstrim.timer"], ""))
+    return steps
+
+
+def apply_plan(steps):
+    for kind, target, content in steps:
+        try:
+            if kind == "write":
+                path = host(target)
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, "w") as f:
+                    f.write(content)
+            elif SYSROOT == "/":
+                subprocess.run(target, check=False, capture_output=True)
+        except OSError as err:
+            print(f"warning: {target}: {err}", file=sys.stderr)
+
+
+# -------------------------------------------------------------------- cli
+
+def print_summary(r, steps, applied):
+    gpu = r["gpu"]
+    print("Indium hardware profile")
+    print(f"  Profile    : {r['profile']}" + ("  (low-memory mode)" if r["lowmem"] else ""))
+    print(f"  RAM / CPUs : {r['ram_mb']} MB / {r['cpus']}")
+    print(f"  GPU        : {gpu['vendor']} ({gpu['driver'] or 'no driver'}), "
+          f"hardware rendering {'ON' if gpu['accelerated'] else 'OFF'}")
+    print(f"  Storage    : {r['storage']}  "
+          f"({', '.join(d['name'] + ':' + d['kind'] for d in r['disks']) or 'none found'})")
+    print(f"  Compositor : {r['compositor']} (renderer {r['renderer']})")
+    print(f"  Effects    : {r['effects']}, animations {r['animations']}, blur {r['blur']}")
+    print()
+    print("Changes applied:" if applied else "Planned changes (dry run, use --apply):")
+    for kind, target, _ in steps:
+        label = target if kind == "write" else " ".join(target)
+        print(f"  {kind:5} {label}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Indium OS hardware profile")
+    parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--json", action="store_true")
+    parser.add_argument("--set", action="append", default=[], metavar="KEY=VALUE")
+    args = parser.parse_args()
+
+    result = decide(parse_overrides(args.set))
+    steps = build_plan(result)
+
+    if args.apply:
+        if SYSROOT == "/" and os.geteuid() != 0:
+            sys.exit("indium-hwprofile --apply must run as root")
+        apply_plan(steps)
+
+    if args.json:
+        print(json.dumps(result, indent=2))
+    else:
+        print_summary(result, steps, args.apply)
+
+
+if __name__ == "__main__":
+    main()
