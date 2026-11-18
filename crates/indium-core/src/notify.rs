@@ -77,8 +77,8 @@ pub fn plain_text(markup: &str) -> String {
 
 /// Split the flat `[key, label, key, label, ...]` array D-Bus delivers.
 pub fn pair_actions(flat: &[String]) -> Vec<(String, String)> {
-    flat.chunks_exact(2)
-        .map(|pair| (pair[0].clone(), pair[1].clone()))
+    (0..flat.len() / 2)
+        .map(|i| (flat[2 * i].clone(), flat[2 * i + 1].clone()))
         .collect()
 }
 

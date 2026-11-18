@@ -252,9 +252,11 @@ impl Dispatch<Handle, ()> for State {
             handle_proto::Event::Title { title } => windows[index].0.title = title,
             handle_proto::Event::AppId { app_id } => windows[index].0.app_id = app_id,
             handle_proto::Event::State { state: bytes } => {
-                let values: Vec<u32> = bytes
-                    .chunks_exact(4)
-                    .map(|c| u32::from_ne_bytes([c[0], c[1], c[2], c[3]]))
+                let values: Vec<u32> = (0..bytes.len() / 4)
+                    .map(|i| {
+                        let b = &bytes[4 * i..4 * i + 4];
+                        u32::from_ne_bytes([b[0], b[1], b[2], b[3]])
+                    })
                     .collect();
                 windows[index].0.minimized = values.contains(&STATE_MINIMIZED);
                 windows[index].0.activated = values.contains(&STATE_ACTIVATED);
