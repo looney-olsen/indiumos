@@ -109,6 +109,19 @@ pub struct Theme {
     last_dark: RefCell<Option<bool>>,
 }
 
+/// Use the Papirus icon theme when it is installed. GTK only reads the system
+/// settings file from the XDG config directories, so the shell asks explicitly.
+fn use_icon_theme() {
+    let installed = ["/usr/share/icons/Papirus", "/usr/local/share/icons/Papirus"]
+        .iter()
+        .any(|p| std::path::Path::new(p).is_dir());
+    if installed {
+        if let Some(settings) = gtk::Settings::default() {
+            settings.set_gtk_icon_theme_name(Some("Papirus"));
+        }
+    }
+}
+
 impl Theme {
     /// Install the shell CSS (and the user's optional `~/.config/indium/user.css`).
     pub fn install(profile: &HardwareProfile, config: &ShellConfig) -> Theme {
@@ -129,6 +142,7 @@ impl Theme {
                 gtk::STYLE_PROVIDER_PRIORITY_USER,
             );
         }
+        use_icon_theme();
         theme.reload(profile, config);
         theme
     }
