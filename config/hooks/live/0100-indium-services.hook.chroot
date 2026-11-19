@@ -2,9 +2,14 @@
 set -e
 systemctl enable indium-hwprofile.service || true
 systemctl enable greetd.service || true
+# Make sure greetd really starts at boot: it must be wanted by graphical.target.
+mkdir -p /etc/systemd/system/graphical.target.wants
+ln -sf /usr/lib/systemd/system/greetd.service /etc/systemd/system/graphical.target.wants/greetd.service
+ln -sf /usr/lib/systemd/system/greetd.service /etc/systemd/system/display-manager.service
 systemctl enable indium-live-autologin.service || true
 systemctl enable NetworkManager.service || true
 systemctl set-default graphical.target || true
+systemctl disable getty@tty1.service || true
 gtk-update-icon-cache -f /usr/share/icons/Papirus 2>/dev/null || true
 chmod +x /usr/bin/indium-session /usr/bin/indium-browser /usr/lib/indium/* 2>/dev/null || true
 # Calamares: rename the Debian branding if present (best effort).
