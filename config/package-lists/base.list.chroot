@@ -20,3 +20,14 @@ sudo
 locales
 ca-certificates
 curl
+adduser
+passwd
+login
+libpam-systemd
+libpam-modules
+less
+nano
+procps
+iproute2
+kmod
+udev
