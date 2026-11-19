@@ -106,6 +106,19 @@ pub fn apply(_window: &impl IsA<gtk::Window>, _spec: &Spec) -> bool {
     false
 }
 
+/// Width in pixels of the first monitor, used to make anchored bars span the screen.
+pub fn output_width() -> Option<i32> {
+    use gtk::gdk;
+    let display = gdk::Display::default()?;
+    let monitor = display
+        .monitors()
+        .item(0)?
+        .downcast::<gdk::Monitor>()
+        .ok()?;
+    let width = monitor.geometry().width();
+    (width > 0).then_some(width)
+}
+
 /// Change only the exclusive zone of an existing layer surface.
 #[cfg(feature = "layer-shell")]
 pub fn set_zone(window: &impl IsA<gtk::Window>, pixels: i32) {

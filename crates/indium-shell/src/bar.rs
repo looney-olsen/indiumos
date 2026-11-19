@@ -100,6 +100,9 @@ pub fn build(shell: &Rc<Shell>) -> gtk::ApplicationWindow {
     );
     if !is_layer {
         window.set_default_size(1100, 28);
+    } else if let Some(width) = layer::output_width() {
+        // Anchored left and right: ask for the whole width so the bar spans the screen.
+        window.set_default_size(width, -1);
     }
 
     let bar = gtk::CenterBox::new();

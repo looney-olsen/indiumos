@@ -1,0 +1,17 @@
+#!/bin/sh
+# indium-shell-session: run the Indium shell for this session and restart it if it crashes.
+# Output goes to ~/.cache/indium-shell.log. A normal exit (for example "Quit") stops the loop.
+
+log_dir="${XDG_CACHE_HOME:-$HOME/.cache}"
+mkdir -p "$log_dir"
+log="$log_dir/indium-shell.log"
+
+sleep 1
+tries=0
+while [ "$tries" -lt 20 ]; do
+    if indium-shell >>"$log" 2>&1; then
+        exit 0
+    fi
+    tries=$((tries + 1))
+    sleep 2
+done
