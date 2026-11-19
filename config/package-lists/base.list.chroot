@@ -31,3 +31,5 @@ procps
 iproute2
 kmod
 udev
+user-setup
+keyboard-configuration
